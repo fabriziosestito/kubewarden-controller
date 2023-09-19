@@ -48,7 +48,7 @@ func (r *Reconciler) reconcilePolicyServerDeployment(ctx context.Context, policy
 	if policyServer.Spec.ImagePullSecret != "" {
 		err := r.policyServerImagePullSecretPresent(ctx, policyServer)
 		if err != nil {
-			return err
+			r.Log.Error(err, "error while validating policy-server image pull secret")
 		}
 	}
 
