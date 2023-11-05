@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/go-logr/logr"
 	"github.com/kubewarden/kubewarden-controller/internal/pkg/admission"
@@ -30,7 +31,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -90,6 +90,10 @@ func (r *AdmissionPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			&policiesv1.PolicyServer{},
 			handler.EnqueueRequestsFromMapFunc(r.findAdmissionPoliciesForPolicyServer),
 		).
+		Watches(
+			&admissionregistrationv1.ValidatingWebhookConfiguration{},
+			handler.EnqueueRequestsFromMapFunc(r.findValidatingWebhookConfigurations),
+		).
 		Complete(r)
 	if err != nil {
 		return errors.Join(errors.New("failed enrolling controller with manager"), err)
@@ -102,47 +106,35 @@ func (r *AdmissionPolicyReconciler) findValidatingWebhookConfigurations(ctx cont
 	if !ok {
 		return []reconcile.Request{}
 	}
-
+	// move to predicate ?
 	if _, ok := validatingWebhookConfiguration.Labels["kubewarden"]; !ok {
 		return []reconcile.Request{}
 	}
 
-	policyName, ok := validatingWebhookConfiguration.Labels["policy"]
-	if !ok {
-		return []reconcile.Request{}
-	}
-	policyNamespace, ok := validatingWebhookConfiguration.Labels["policyNamespace"]
-
-	if !ok {
+	if !strings.HasPrefix(validatingWebhookConfiguration.Name, "namespaced-") {
 		return []reconcile.Request{}
 	}
 
-	// Cluster-wide
-	if policyNamespace == "" {
+	if len(validatingWebhookConfiguration.Webhooks) != 1 {
 		return []reconcile.Request{}
 	}
 
-	// Get the policy from the webhook configuration labels
-	policy := policiesv1.AdmissionPolicy{}
+	r.Log.Info("Found validating webhook configuration", "name", validatingWebhookConfiguration.Name)
+	webhook := validatingWebhookConfiguration.Webhooks[0]
+	policyServerDeploymentName := webhook.ClientConfig.Service.Name
 
-	r.Log.Info("Found validating webhook configuration", "w", policyName)
+	r.Log.Info("Found policy server name", "name", policyServerDeploymentName)
+	configMap := corev1.ConfigMap{}
 	err := r.Reconciler.APIReader.Get(ctx, client.ObjectKey{
-		Name:      policyName,
-		Namespace: policyNamespace,
-	}, &policy)
+		Namespace: r.Reconciler.DeploymentsNamespace,
+		Name:      policyServerDeploymentName, // As the deployment name matches the name of the ConfigMap
+	}, &configMap)
 	if err != nil {
+		r.Log.Info("Failed to get configmap", "error", err)
 		return []reconcile.Request{}
 	}
-
-	r.Log.Info("Found validating webhook policy", "p", policyName)
-	return []reconcile.Request{
-		{
-			NamespacedName: types.NamespacedName{
-				Namespace: policyName,
-				Name:      policyNamespace,
-			},
-		},
-	}
+	r.Log.Info("Found configmap", "name", configMap.Name)
+	return r.findAdmissionPoliciesForConfigMap(&configMap)
 }
 
 func (r *AdmissionPolicyReconciler) findAdmissionPoliciesForConfigMap(object client.Object) []reconcile.Request {

@@ -23,7 +23,8 @@ func (r *Reconciler) ReconcileValidatingWebhookConfiguration(
 	ctx context.Context,
 	policy policiesv1.Policy,
 	admissionSecret *corev1.Secret,
-	policyServerNameWithPrefix string) error {
+	policyServerNameWithPrefix string,
+) error {
 	webhook := r.validatingWebhookConfiguration(policy, admissionSecret, policyServerNameWithPrefix)
 	err := r.Client.Create(ctx, webhook)
 	if err == nil {
@@ -37,14 +38,24 @@ func (r *Reconciler) ReconcileValidatingWebhookConfiguration(
 
 func (r *Reconciler) updateValidatingWebhook(ctx context.Context,
 	policy policiesv1.Policy,
-	newWebhook *admissionregistrationv1.ValidatingWebhookConfiguration) error {
+	newWebhook *admissionregistrationv1.ValidatingWebhookConfiguration,
+) error {
 	var originalWebhook admissionregistrationv1.ValidatingWebhookConfiguration
-
+	r.Log.Info("************** updateValidatingWebhook", "policy", policy.GetUniqueName())
 	err := r.Client.Get(ctx, client.ObjectKey{
 		Name: policy.GetUniqueName(),
 	}, &originalWebhook)
 	if err != nil && apierrors.IsNotFound(err) {
 		return fmt.Errorf("cannot retrieve mutating webhook: %w", err)
+	}
+
+	if !reflect.DeepEqual(originalWebhook.ObjectMeta.Labels, newWebhook.ObjectMeta.Labels) {
+		patch := originalWebhook.DeepCopy()
+		patch.ObjectMeta.Labels = newWebhook.ObjectMeta.Labels
+		err = r.Client.Patch(ctx, patch, client.MergeFrom(&originalWebhook))
+		if err != nil {
+			return fmt.Errorf("cannot patch validating webhook: %w", err)
+		}
 	}
 
 	if !reflect.DeepEqual(originalWebhook.Webhooks, newWebhook.Webhooks) {
@@ -62,7 +73,8 @@ func (r *Reconciler) updateValidatingWebhook(ctx context.Context,
 func (r *Reconciler) validatingWebhookConfiguration(
 	policy policiesv1.Policy,
 	admissionSecret *corev1.Secret,
-	policyServerName string) *admissionregistrationv1.ValidatingWebhookConfiguration {
+	policyServerName string,
+) *admissionregistrationv1.ValidatingWebhookConfiguration {
 	admissionPath := filepath.Join("/validate", policy.GetUniqueName())
 	admissionPort := int32(constants.PolicyServerPort)
 
