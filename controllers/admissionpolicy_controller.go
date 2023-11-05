@@ -26,9 +26,11 @@ import (
 	"github.com/kubewarden/kubewarden-controller/internal/pkg/constants"
 	"github.com/kubewarden/kubewarden-controller/internal/pkg/naming"
 	policiesv1 "github.com/kubewarden/kubewarden-controller/pkg/apis/policies/v1"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -89,11 +91,58 @@ func (r *AdmissionPolicyReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			handler.EnqueueRequestsFromMapFunc(r.findAdmissionPoliciesForPolicyServer),
 		).
 		Complete(r)
-
 	if err != nil {
 		return errors.Join(errors.New("failed enrolling controller with manager"), err)
 	}
 	return nil
+}
+
+func (r *AdmissionPolicyReconciler) findValidatingWebhookConfigurations(ctx context.Context, object client.Object) []reconcile.Request {
+	validatingWebhookConfiguration, ok := object.(*admissionregistrationv1.ValidatingWebhookConfiguration)
+	if !ok {
+		return []reconcile.Request{}
+	}
+
+	if _, ok := validatingWebhookConfiguration.Labels["kubewarden"]; !ok {
+		return []reconcile.Request{}
+	}
+
+	policyName, ok := validatingWebhookConfiguration.Labels["policy"]
+	if !ok {
+		return []reconcile.Request{}
+	}
+	policyNamespace, ok := validatingWebhookConfiguration.Labels["policyNamespace"]
+
+	if !ok {
+		return []reconcile.Request{}
+	}
+
+	// Cluster-wide
+	if policyNamespace == "" {
+		return []reconcile.Request{}
+	}
+
+	// Get the policy from the webhook configuration labels
+	policy := policiesv1.AdmissionPolicy{}
+
+	r.Log.Info("Found validating webhook configuration", "w", policyName)
+	err := r.Reconciler.APIReader.Get(ctx, client.ObjectKey{
+		Name:      policyName,
+		Namespace: policyNamespace,
+	}, &policy)
+	if err != nil {
+		return []reconcile.Request{}
+	}
+
+	r.Log.Info("Found validating webhook policy", "p", policyName)
+	return []reconcile.Request{
+		{
+			NamespacedName: types.NamespacedName{
+				Namespace: policyName,
+				Name:      policyNamespace,
+			},
+		},
+	}
 }
 
 func (r *AdmissionPolicyReconciler) findAdmissionPoliciesForConfigMap(object client.Object) []reconcile.Request {
