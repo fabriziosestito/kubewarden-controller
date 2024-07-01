@@ -17,6 +17,7 @@ limitations under the License.
 package envtest
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -40,6 +41,8 @@ import (
 
 var _ = Describe("PolicyServer controller", func() {
 	var policyServerName string
+
+	ctx := context.Background()
 
 	BeforeEach(func() {
 		policyServerName = NewName("policy-server")
