@@ -22,7 +22,7 @@ import (
 
 const dataType string = "Data" // only data type is supported
 
-type policyServerConfigEntry struct {
+type PolicyServerConfigEntry struct {
 	NamespacedName        types.NamespacedName              `json:"namespacedName"`
 	URL                   string                            `json:"url"`
 	PolicyMode            string                            `json:"policyMode"`
@@ -31,15 +31,15 @@ type policyServerConfigEntry struct {
 	Settings              runtime.RawExtension              `json:"settings,omitempty"`
 }
 
-type policyServerSourceAuthority struct {
+type PolicyServerSourceAuthority struct {
 	Type string `json:"type"`
 	Data string `json:"data"` // contains a PEM encoded certificate
 }
 
 //nolint:tagliatelle
-type policyServerSourcesEntry struct {
+type PolicyServerSourcesEntry struct {
 	InsecureSources   []string                                 `json:"insecure_sources,omitempty"`
-	SourceAuthorities map[string][]policyServerSourceAuthority `json:"source_authorities,omitempty"`
+	SourceAuthorities map[string][]PolicyServerSourceAuthority `json:"source_authorities,omitempty"`
 }
 
 // Reconciles the ConfigMap that holds the configuration of the Policy Server
@@ -111,10 +111,10 @@ func (r *PolicyServerReconciler) policyServerConfigMapVersion(ctx context.Contex
 	return unstructuredObj.GetResourceVersion(), nil
 }
 
-func buildPoliciesMap(admissionPolicies []policiesv1.Policy) policyConfigEntryMap {
-	policies := policyConfigEntryMap{}
+func buildPoliciesMap(admissionPolicies []policiesv1.Policy) PolicyConfigEntryMap {
+	policies := PolicyConfigEntryMap{}
 	for _, admissionPolicy := range admissionPolicies {
-		policies[admissionPolicy.GetUniqueName()] = policyServerConfigEntry{
+		policies[admissionPolicy.GetUniqueName()] = PolicyServerConfigEntry{
 			NamespacedName: types.NamespacedName{
 				Namespace: admissionPolicy.GetNamespace(),
 				Name:      admissionPolicy.GetName(),
@@ -129,20 +129,20 @@ func buildPoliciesMap(admissionPolicies []policiesv1.Policy) policyConfigEntryMa
 	return policies
 }
 
-func buildSourcesMap(policyServer *policiesv1.PolicyServer) policyServerSourcesEntry {
-	sourcesEntry := policyServerSourcesEntry{}
+func buildSourcesMap(policyServer *policiesv1.PolicyServer) PolicyServerSourcesEntry {
+	sourcesEntry := PolicyServerSourcesEntry{}
 	sourcesEntry.InsecureSources = policyServer.Spec.InsecureSources
 	if sourcesEntry.InsecureSources == nil {
 		sourcesEntry.InsecureSources = make([]string, 0)
 	}
 
-	sourcesEntry.SourceAuthorities = make(map[string][]policyServerSourceAuthority)
+	sourcesEntry.SourceAuthorities = make(map[string][]PolicyServerSourceAuthority)
 	// build sources.yml with data keys for Policy-server
 	for uri, certs := range policyServer.Spec.SourceAuthorities {
-		sourcesEntry.SourceAuthorities[uri] = make([]policyServerSourceAuthority, 0)
+		sourcesEntry.SourceAuthorities[uri] = make([]PolicyServerSourceAuthority, 0)
 		for _, cert := range certs {
 			sourcesEntry.SourceAuthorities[uri] = append(sourcesEntry.SourceAuthorities[uri],
-				policyServerSourceAuthority{
+				PolicyServerSourceAuthority{
 					Type: dataType,
 					Data: cert,
 				})
@@ -151,9 +151,9 @@ func buildSourcesMap(policyServer *policiesv1.PolicyServer) policyServerSourcesE
 	return sourcesEntry
 }
 
-type policyConfigEntryMap map[string]policyServerConfigEntry
+type PolicyConfigEntryMap map[string]PolicyServerConfigEntry
 
-func (e policyConfigEntryMap) toAdmissionPolicyReconcileRequests() []reconcile.Request {
+func (e PolicyConfigEntryMap) toAdmissionPolicyReconcileRequests() []reconcile.Request {
 	res := []reconcile.Request{}
 	for _, policy := range e {
 		if policy.NamespacedName.Namespace == "" {
@@ -169,7 +169,7 @@ func (e policyConfigEntryMap) toAdmissionPolicyReconcileRequests() []reconcile.R
 	return res
 }
 
-func (e policyConfigEntryMap) toClusterAdmissionPolicyReconcileRequests() []reconcile.Request {
+func (e PolicyConfigEntryMap) toClusterAdmissionPolicyReconcileRequests() []reconcile.Request {
 	res := []reconcile.Request{}
 	for _, policy := range e {
 		if policy.NamespacedName.Namespace != "" {

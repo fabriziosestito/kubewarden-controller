@@ -32,8 +32,8 @@ import (
 	"github.com/kubewarden/kubewarden-controller/internal/constants"
 )
 
-func getPolicyMapFromConfigMap(configMap *corev1.ConfigMap) (policyConfigEntryMap, error) {
-	policyMap := policyConfigEntryMap{}
+func getPolicyMapFromConfigMap(configMap *corev1.ConfigMap) (PolicyConfigEntryMap, error) {
+	policyMap := PolicyConfigEntryMap{}
 	if policies, ok := configMap.Data[constants.PolicyServerConfigPoliciesEntry]; ok {
 		if err := json.Unmarshal([]byte(policies), &policyMap); err != nil {
 			return policyMap, errors.Join(errors.New("failed to unmarshal policy mapping"), err)
