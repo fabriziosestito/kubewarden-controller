@@ -18,6 +18,8 @@ limitations under the License.
 package controller
 
 import (
+	"context"
+
 	. "github.com/onsi/ginkgo/v2" //nolint:revive
 	. "github.com/onsi/gomega"    //nolint:revive
 
@@ -28,22 +30,18 @@ import (
 )
 
 var _ = Describe("ClusterAdmissionPolicy controller", func() {
-	var policyServerName string
+	ctx := context.Background()
 
-	// let's use this constant to avoid linter errors
-	const PolicyServerNamePrefix = "policy-server-"
-
-	BeforeEach(func() {
-		policyServerName = newName("policy-server")
-	})
-
-	When("creating a validating ClusterAdmissionPolicy", func() {
+	When("creating a validating ClusterAdmissionPolicy", Ordered, func() {
+		var policyServerName string
 		var policyName string
 		var policy *policiesv1.ClusterAdmissionPolicy
 
-		BeforeEach(func() {
-			policyName = newName("validating-policy")
+		BeforeAll(func() {
+			policyServerName = newName("policy-server")
 			createPolicyServerAndWaitForItsService(policyServerFactory(policyServerName))
+
+			policyName = newName("validating-policy")
 			policy = clusterAdmissionPolicyFactory(policyName, policyServerName, false)
 			Expect(k8sClient.Create(ctx, policy)).To(Succeed())
 		})
@@ -76,7 +74,7 @@ var _ = Describe("ClusterAdmissionPolicy controller", func() {
 				Expect(validatingWebhookConfiguration.Annotations[constants.WebhookConfigurationPolicyNameAnnotationKey]).To(Equal(policyName))
 				Expect(validatingWebhookConfiguration.Annotations[constants.WebhookConfigurationPolicyNamespaceAnnotationKey]).To(BeEmpty())
 				Expect(validatingWebhookConfiguration.Webhooks).To(HaveLen(1))
-				Expect(validatingWebhookConfiguration.Webhooks[0].ClientConfig.Service.Name).To(Equal(PolicyServerNamePrefix + policyServerName))
+				Expect(validatingWebhookConfiguration.Webhooks[0].ClientConfig.Service.Name).To(Equal("policy-server-" + policyServerName))
 
 				caSecret, err := getTestCASecret()
 				Expect(err).ToNot(HaveOccurred())
@@ -123,13 +121,16 @@ var _ = Describe("ClusterAdmissionPolicy controller", func() {
 		})
 	})
 
-	When("creating a mutating ClusterAdmissionPolicy", func() {
+	When("creating a mutating ClusterAdmissionPolicy", Ordered, func() {
+		var policyServerName string
 		var policyName string
 		var policy *policiesv1.ClusterAdmissionPolicy
 
-		BeforeEach(func() {
-			policyName = newName("mutating-policy")
+		BeforeAll(func() {
+			policyServerName = newName("policy-server")
 			createPolicyServerAndWaitForItsService(policyServerFactory(policyServerName))
+
+			policyName = newName("mutating-policy")
 			policy = clusterAdmissionPolicyFactory(policyName, policyServerName, true)
 			Expect(k8sClient.Create(ctx, policy)).To(Succeed())
 		})
@@ -161,7 +162,7 @@ var _ = Describe("ClusterAdmissionPolicy controller", func() {
 				Expect(mutatingWebhookConfiguration.Annotations[constants.WebhookConfigurationPolicyNameAnnotationKey]).To(Equal(policyName))
 				Expect(mutatingWebhookConfiguration.Annotations[constants.WebhookConfigurationPolicyNamespaceAnnotationKey]).To(BeEmpty())
 				Expect(mutatingWebhookConfiguration.Webhooks).To(HaveLen(1))
-				Expect(mutatingWebhookConfiguration.Webhooks[0].ClientConfig.Service.Name).To(Equal(PolicyServerNamePrefix + policyServerName))
+				Expect(mutatingWebhookConfiguration.Webhooks[0].ClientConfig.Service.Name).To(Equal("policy-server-" + policyServerName))
 
 				caSecret, err := getTestCASecret()
 				Expect(err).ToNot(HaveOccurred())
@@ -221,11 +222,11 @@ var _ = Describe("ClusterAdmissionPolicy controller", func() {
 		)
 	})
 
-	When("creating a ClusterAdmissionPolicy with a PolicyServer assigned but not running yet", func() {
-		var policyName string
+	When("creating a ClusterAdmissionPolicy with a PolicyServer assigned but not running yet", Ordered, func() {
+		policyName := newName("scheduled-policy")
+		policyServerName := newName("policy-server")
 
-		BeforeEach(func() {
-			policyName = newName("scheduled-policy")
+		BeforeAll(func() {
 			Expect(
 				k8sClient.Create(ctx, clusterAdmissionPolicyFactory(policyName, policyServerName, false)),
 			).To(haveSucceededOrAlreadyExisted())

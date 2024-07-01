@@ -21,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2" //nolint:revive
 	. "github.com/onsi/gomega"    //nolint:revive
@@ -30,35 +31,31 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 
 	policiesv1 "github.com/kubewarden/kubewarden-controller/api/policies/v1"
 	"github.com/kubewarden/kubewarden-controller/internal/admission"
+	"github.com/kubewarden/kubewarden-controller/internal/controller"
+	"github.com/kubewarden/kubewarden-controller/internal/controller/test"
 	//+kubebuilder:scaffold:imports
 )
 
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to
 // http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
 
-var (
-	cfg          *rest.Config //nolint
-	k8sClient    client.Client
-	testEnv      *envtest.Environment
-	ctx          context.Context
-	cancel       context.CancelFunc
-	reconciler   admission.Reconciler
-	k3sContainer *k3s.K3sContainer
+const (
+	timeout            = 180 * time.Second
+	pollInterval       = 250 * time.Millisecond
+	consistencyTimeout = 5 * time.Second
 )
 
-const (
-	DeploymentsNamespace = "kubewarden-integration-tests"
-)
+var k8sClient client.Client
 
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -66,10 +63,10 @@ func TestAPIs(t *testing.T) {
 	RunSpecs(t, "Controller Suite")
 }
 
-var _ = BeforeSuite(func() {
+var _ = SynchronizedBeforeSuite(func() []byte {
 	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 
-	ctx, cancel = context.WithCancel(context.TODO())
+	ctx, cancel := context.WithCancel(context.TODO())
 
 	By("bootstrapping test environment")
 	k3sTestcontainerVersion, ok := os.LookupEnv("K3S_TESTCONTAINER_VERSION")
@@ -78,7 +75,7 @@ var _ = BeforeSuite(func() {
 	}
 
 	var err error
-	k3sContainer, err = k3s.RunContainer(ctx,
+	k3sContainer, err := k3s.RunContainer(ctx,
 		testcontainers.WithImage("docker.io/rancher/k3s:"+k3sTestcontainerVersion),
 	)
 	Expect(err).NotTo(HaveOccurred())
@@ -90,8 +87,8 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 
 	trueValue := true
-	testEnv = &envtest.Environment{
-		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "config", "crd", "bases")},
+	testEnv := &envtest.Environment{
+		CRDDirectoryPaths:     []string{filepath.Join("..", "..", "..", "..", "config", "crd", "bases")},
 		ErrorIfCRDPathMissing: true,
 		Config:                restcfg,
 		UseExistingCluster:    &trueValue,
@@ -106,47 +103,49 @@ var _ = BeforeSuite(func() {
 
 	//+kubebuilder:scaffold:scheme
 
-	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
-	Expect(err).NotTo(HaveOccurred())
-	Expect(k8sClient).NotTo(BeNil())
-
 	k8sManager, err := ctrl.NewManager(cfg, ctrl.Options{
 		Scheme: scheme.Scheme,
+		Metrics: metricsserver.Options{
+			// This disables the metrics server
+			BindAddress: "0",
+		},
 	})
 	Expect(err).ToNot(HaveOccurred())
 
-	reconciler = admission.Reconciler{
+	reconciler := admission.Reconciler{
 		Client:               k8sManager.GetClient(),
 		APIReader:            k8sManager.GetClient(),
 		Log:                  ctrl.Log.WithName("reconciler"),
-		DeploymentsNamespace: DeploymentsNamespace,
+		DeploymentsNamespace: test.DeploymentsNamespace,
 	}
 
-	err = (&AdmissionPolicyReconciler{
+	err = (&controller.AdmissionPolicyReconciler{
 		Client:     k8sManager.GetClient(),
 		Scheme:     k8sManager.GetScheme(),
 		Reconciler: reconciler,
 	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
 
-	err = (&ClusterAdmissionPolicyReconciler{
+	err = (&controller.ClusterAdmissionPolicyReconciler{
 		Client:     k8sManager.GetClient(),
 		Scheme:     k8sManager.GetScheme(),
 		Reconciler: reconciler,
 	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
 
-	err = (&PolicyServerReconciler{
+	err = (&controller.PolicyServerReconciler{
 		Client:               k8sManager.GetClient(),
 		Scheme:               k8sManager.GetScheme(),
-		DeploymentsNamespace: DeploymentsNamespace,
+		DeploymentsNamespace: test.DeploymentsNamespace,
 	}).SetupWithManager(k8sManager)
 	Expect(err).ToNot(HaveOccurred())
 
+	k8sClient, err := client.New(restcfg, client.Options{Scheme: scheme.Scheme})
+	Expect(err).NotTo(HaveOccurred())
 	// Create the integration tests deployments namespace
 	err = k8sClient.Create(ctx, &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: DeploymentsNamespace,
+			Name: test.DeploymentsNamespace,
 		},
 	})
 	Expect(err).NotTo(HaveOccurred())
@@ -156,19 +155,28 @@ var _ = BeforeSuite(func() {
 		err = k8sManager.Start(ctx)
 		Expect(err).ToNot(HaveOccurred(), "failed to run manager")
 	}()
-})
 
-var _ = AfterSuite(func() {
-	// When running the suite multiple times, canceling the context
-	// is not enough to stop the container in time. We need to terminate it.
-	// Otherwise, the next run may fail in the container initialization.
-	By("terminate the k3s container")
-	err := k3sContainer.Terminate(ctx)
+	DeferCleanup(func() error {
+		// TODO: riguardare questo
+		err := k3sContainer.Terminate(ctx)
+		if err != nil {
+			return err
+		}
+
+		cancel()
+
+		return testEnv.Stop()
+	})
+
+	return kubeConfigYaml
+}, func(kubeConfigYaml []byte) {
+	restcfg, err := clientcmd.RESTConfigFromKubeConfig(kubeConfigYaml)
 	Expect(err).NotTo(HaveOccurred())
 
-	cancel()
-	By("tearing down the test environment")
-
-	err = testEnv.Stop()
+	err = policiesv1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
+
+	k8sClient, err = client.New(restcfg, client.Options{Scheme: scheme.Scheme})
+	Expect(err).NotTo(HaveOccurred())
+	Expect(k8sClient).NotTo(BeNil())
 })
