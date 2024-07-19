@@ -454,20 +454,6 @@ var _ = Describe("PolicyServer controller", func() {
 			createPolicyServerAndWaitForItsService(ctx, policyServer)
 
 			Eventually(func() error {
-				secret, err := getInternalPolicyServerRootCASecret(ctx)
-				if err != nil {
-					return err
-				}
-
-				By("creating a secret containing the CA certificate and key")
-				Expect(secret.Data).To(HaveKey(constants.PolicyServerCARootCACert))
-				Expect(secret.Data).To(HaveKey(constants.PolicyServerCARootPemName))
-				Expect(secret.Data).To(HaveKey(constants.PolicyServerCARootPrivateKeyCertName))
-
-				return nil
-			}).Should(Succeed())
-
-			Eventually(func() error {
 				secret, err := getTestPolicyServerSecret(ctx, policyServerName)
 				if err != nil {
 					return err

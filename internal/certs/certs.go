@@ -21,9 +21,9 @@ const (
 	exp     = 159
 )
 
-// GenerateCA generates a self-signed CA root certificate and private key
+// GenerateCA generates a self-signed CA root certificate and private key in PEM format.
 // The certificate is valid for 10 years.
-func GenerateCA() ([]byte, *rsa.PrivateKey, error) {
+func GenerateCA() ([]byte, []byte, error) {
 	serialNumber, err := rand.Int(rand.Reader, (&big.Int{}).Exp(big.NewInt(base), big.NewInt(exp), nil))
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot init serial number: %w", err)
@@ -62,11 +62,21 @@ func GenerateCA() ([]byte, *rsa.PrivateKey, error) {
 		return nil, nil, fmt.Errorf("cannot create certificate: %w", err)
 	}
 
-	return caCertBytes, privateKey, nil
+	caCertPEM, err := PEMEncodeCertificate(caCertBytes)
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot encode certificate: %w", err)
+	}
+
+	privateKeyPEM, err := PEMEncodePrivateKey(privateKey)
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot encode private key: %w", err)
+	}
+
+	return caCertPEM, privateKeyPEM, nil
 }
 
 // GenerateCert generates a certificate and private key signed by the provided CA in PEM format.
-// The certificate is valid for 365 days.
+// The certificate is valid for 1 year.
 func GenerateCert(caCertPEM []byte,
 	caPrivateKeyPEM []byte,
 	commonName string,

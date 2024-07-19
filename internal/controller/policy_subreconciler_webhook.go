@@ -65,7 +65,7 @@ func (r *policySubReconciler) reconcileValidatingWebhookConfiguration(
 				Name: policy.GetUniqueName() + ".kubewarden.admission",
 				ClientConfig: admissionregistrationv1.WebhookClientConfig{
 					Service:  &service,
-					CABundle: admissionSecret.Data[constants.PolicyServerCARootPemName],
+					CABundle: admissionSecret.Data[constants.CARootCert],
 				},
 				Rules:                   policy.GetRules(),
 				FailurePolicy:           policy.GetFailurePolicy(),
@@ -150,7 +150,7 @@ func (r *policySubReconciler) reconcileMutatingWebhookConfiguration(
 				Name: policy.GetUniqueName() + ".kubewarden.admission",
 				ClientConfig: admissionregistrationv1.WebhookClientConfig{
 					Service:  &service,
-					CABundle: admissionSecret.Data[constants.PolicyServerCARootPemName],
+					CABundle: admissionSecret.Data[constants.CARootCert],
 				},
 				Rules:                   policy.GetRules(),
 				FailurePolicy:           policy.GetFailurePolicy(),

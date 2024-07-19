@@ -77,7 +77,7 @@ var _ = Describe("ClusterAdmissionPolicy controller", Label("real-cluster"), fun
 
 				caSecret, err := getTestCASecret(ctx)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(validatingWebhookConfiguration.Webhooks[0].ClientConfig.CABundle).To(Equal(caSecret.Data[constants.PolicyServerCARootPemName]))
+				Expect(validatingWebhookConfiguration.Webhooks[0].ClientConfig.CABundle).To(Equal(caSecret.Data[constants.CARootCert]))
 
 				return nil
 			}, timeout, pollInterval).Should(Succeed())
@@ -165,7 +165,7 @@ var _ = Describe("ClusterAdmissionPolicy controller", Label("real-cluster"), fun
 
 				caSecret, err := getTestCASecret(ctx)
 				Expect(err).ToNot(HaveOccurred())
-				Expect(mutatingWebhookConfiguration.Webhooks[0].ClientConfig.CABundle).To(Equal(caSecret.Data[constants.PolicyServerCARootPemName]))
+				Expect(mutatingWebhookConfiguration.Webhooks[0].ClientConfig.CABundle).To(Equal(caSecret.Data[constants.CARootCert]))
 
 				return nil
 			}, timeout, pollInterval).Should(Succeed())

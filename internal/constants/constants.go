@@ -6,13 +6,15 @@ const (
 	// DefaultPolicyServer is the default policy server name to be used when
 	// policies does not have a policy server name defined.
 	DefaultPolicyServer = "default"
+
 	// PolicyServer CA Secret.
-	PolicyServerTLSCert                  = "policy-server-cert"
-	PolicyServerTLSKey                   = "policy-server-key"
-	PolicyServerCARootSecretName         = "policy-server-root-ca"
-	PolicyServerCARootPemName            = "policy-server-root-ca-pem"
-	PolicyServerCARootCACert             = "policy-server-root-ca-cert"
-	PolicyServerCARootPrivateKeyCertName = "policy-server-root-ca-privatekey-cert"
+	PolicyServerTLSCert = "policy-server-cert"
+	PolicyServerTLSKey  = "policy-server-key"
+
+	// CA Root Secret.
+	CARootSecretName = "kubewarden-webhook-server-cert" //nolint:gosec // This is not a credential
+	CARootCert       = "ca.crt"
+	CARootPrivateKey = "ca.key"
 
 	// PolicyServer Deployment.
 	PolicyServerEnableMetricsEnvVar                 = "KUBEWARDEN_ENABLE_METRICS"
