@@ -65,16 +65,23 @@ func GenerateCA() ([]byte, *rsa.PrivateKey, error) {
 	return caCertBytes, privateKey, nil
 }
 
-// GenerateCert generates a certificate and private key signed by the provided CA.
-// The certificate is valid for 10 years.
-func GenerateCert(ca []byte,
+// GenerateCert generates a certificate and private key signed by the provided CA in PEM format.
+// The certificate is valid for 365 days.
+func GenerateCert(caCertPEM []byte,
+	caPrivateKeyPEM []byte,
 	commonName string,
 	extraSANs []string,
-	caPrivateKey *rsa.PrivateKey,
-) ([]byte, *rsa.PrivateKey, error) {
-	caCertificate, err := x509.ParseCertificate(ca)
+) ([]byte, []byte, error) {
+	caCertBlock, _ := pem.Decode(caCertPEM)
+	caCert, err := x509.ParseCertificate(caCertBlock.Bytes)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error parsing certificate: %w", err)
+		return nil, nil, fmt.Errorf("error parsing ca root certificate: %w", err)
+	}
+
+	caPrivateKeyBlock, _ := pem.Decode(caPrivateKeyPEM)
+	caPrivateKey, err := x509.ParsePKCS1PrivateKey(caPrivateKeyBlock.Bytes)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error parsing ca root private key: %w", err)
 	}
 
 	serialNumber, err := rand.Int(rand.Reader, (&big.Int{}).Exp(big.NewInt(base), big.NewInt(exp), nil))
@@ -91,7 +98,6 @@ func GenerateCert(ca []byte,
 
 	sansHosts := []string{}
 	sansIps := []net.IP{}
-
 	for _, san := range extraSANs {
 		sanIP := net.ParseIP(san)
 		if sanIP == nil {
@@ -124,14 +130,24 @@ func GenerateCert(ca []byte,
 	certBytes, err := x509.CreateCertificate(
 		rand.Reader,
 		&cert,
-		caCertificate,
+		caCert,
 		&privateKey.PublicKey,
 		caPrivateKey)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot create certificate: %w", err)
 	}
 
-	return certBytes, privateKey, nil
+	certPEM, err := PEMEncodeCertificate(certBytes)
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot encode certificate: %w", err)
+	}
+
+	privateKeyPEM, err := PEMEncodePrivateKey(privateKey)
+	if err != nil {
+		return nil, nil, fmt.Errorf("cannot encode private key: %w", err)
+	}
+
+	return certPEM, privateKeyPEM, nil
 }
 
 // PEMEncodeCertificate encodes a certificate to PEM format.
