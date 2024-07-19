@@ -62,12 +62,12 @@ func GenerateCA() ([]byte, []byte, error) {
 		return nil, nil, fmt.Errorf("cannot create certificate: %w", err)
 	}
 
-	caCertPEM, err := PEMEncodeCertificate(caCertBytes)
+	caCertPEM, err := pemEncodeCertificate(caCertBytes)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot encode certificate: %w", err)
 	}
 
-	privateKeyPEM, err := PEMEncodePrivateKey(privateKey)
+	privateKeyPEM, err := pemEncodePrivateKey(privateKey)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot encode private key: %w", err)
 	}
@@ -147,12 +147,12 @@ func GenerateCert(caCertPEM []byte,
 		return nil, nil, fmt.Errorf("cannot create certificate: %w", err)
 	}
 
-	certPEM, err := PEMEncodeCertificate(certBytes)
+	certPEM, err := pemEncodeCertificate(certBytes)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot encode certificate: %w", err)
 	}
 
-	privateKeyPEM, err := PEMEncodePrivateKey(privateKey)
+	privateKeyPEM, err := pemEncodePrivateKey(privateKey)
 	if err != nil {
 		return nil, nil, fmt.Errorf("cannot encode private key: %w", err)
 	}
@@ -160,8 +160,8 @@ func GenerateCert(caCertPEM []byte,
 	return certPEM, privateKeyPEM, nil
 }
 
-// PEMEncodeCertificate encodes a certificate to PEM format.
-func PEMEncodeCertificate(certificate []byte) ([]byte, error) {
+// pemEncodeCertificate encodes a certificate to PEM format.
+func pemEncodeCertificate(certificate []byte) ([]byte, error) {
 	certificatePEM := new(bytes.Buffer)
 
 	err := pem.Encode(certificatePEM, &pem.Block{
@@ -175,8 +175,8 @@ func PEMEncodeCertificate(certificate []byte) ([]byte, error) {
 	return certificatePEM.Bytes(), nil
 }
 
-// PEMEncodePrivateKey encodes a private key to PEM format.
-func PEMEncodePrivateKey(privateKey *rsa.PrivateKey) ([]byte, error) {
+// pemEncodePrivateKey encodes a private key to PEM format.
+func pemEncodePrivateKey(privateKey *rsa.PrivateKey) ([]byte, error) {
 	privateKeyBytes := x509.MarshalPKCS1PrivateKey(privateKey)
 	privateKeyPEM := new(bytes.Buffer)
 
