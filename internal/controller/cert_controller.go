@@ -15,11 +15,13 @@ type CertController struct {
 	Log logr.Logger
 }
 
-// Start begins the periodic reconciler
+const tickerDuration = 5 * time.Minute
+
+// Start begins the periodic reconciler.
 func (r *CertController) Start(ctx context.Context) error {
 	r.Log.Info("Starting CertController ticker")
 
-	ticker := time.NewTicker(5 * time.Minute)
+	ticker := time.NewTicker(tickerDuration)
 	defer ticker.Stop()
 
 	for {
@@ -47,7 +49,7 @@ func (r *CertController) SetupWithManager(mgr ctrl.Manager) error {
 	return nil
 }
 
-// reconcile performs the periodic reconciliation logic
+// reconcile performs the periodic reconciliation logic.
 func (r *CertController) reconcile(_ context.Context) error {
 	// Add your reconciliation logic here
 
