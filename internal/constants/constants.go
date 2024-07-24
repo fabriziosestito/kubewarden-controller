@@ -7,12 +7,13 @@ const (
 	// policies does not have a policy server name defined.
 	DefaultPolicyServer = "default"
 
-	// PolicyServer CA Secret.
-	PolicyServerTLSCert = "policy-server-cert"
-	PolicyServerTLSKey  = "policy-server-key"
+	// Server Cert Secret.
+	WebhookServerCertSecretName = "kubewarden-webhook-server-cert" //nolint:gosec // This is not a credential
+	ServerCert                  = "tls.crt"
+	ServerKey                   = "tls.key"
 
 	// CA Root Secret.
-	CARootSecretName = "kubewarden-webhook-server-cert" //nolint:gosec // This is not a credential
+	CARootSecretName = "kubewarden-ca" //nolint:gosec // This is not a credential
 	CARootCert       = "ca.crt"
 	CARootPrivateKey = "ca.key"
 
